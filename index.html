@@ -1,0 +1,1961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Family Tree — Where families grow together</title>
+  <style>
+    :root {
+      --cream: #faf6f0;
+      --warm-white: #fffdf9;
+      --sand: #e8dcc8;
+      --tan: #c4a574;
+      --brown: #6b4423;
+      --dark-brown: #4a2f1a;
+      --terracotta: #b85c38;
+      --gold: #c9973a;
+      --sage: #7a8b6f;
+      --shadow: rgba(74, 47, 26, 0.12);
+      --line: #c4a574;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      background: linear-gradient(180deg, var(--cream) 0%, #f0e6d6 100%);
+      color: var(--dark-brown);
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, var(--brown) 0%, var(--dark-brown) 100%);
+      color: var(--warm-white);
+      padding: 1.25rem 2rem;
+      box-shadow: 0 2px 12px var(--shadow);
+    }
+
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: normal;
+      letter-spacing: 0.02em;
+    }
+
+    header p {
+      font-size: 0.9rem;
+      opacity: 0.85;
+      margin-top: 0.35rem;
+      font-style: italic;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      padding: 1rem 2rem;
+      background: var(--warm-white);
+      border-bottom: 1px solid var(--sand);
+      align-items: center;
+    }
+
+    .toolbar button {
+      font-family: inherit;
+      font-size: 0.875rem;
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--tan);
+      background: var(--cream);
+      color: var(--dark-brown);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .toolbar button:hover {
+      background: var(--sand);
+      border-color: var(--brown);
+    }
+
+    .toolbar button.primary {
+      background: var(--terracotta);
+      border-color: var(--terracotta);
+      color: white;
+    }
+
+    .toolbar button.primary:hover {
+      background: #a04d2f;
+    }
+
+    .toolbar .status {
+      margin-left: auto;
+      font-size: 0.8rem;
+      color: var(--sage);
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 0;
+      height: calc(100vh - 140px);
+      min-height: 0;
+      overflow: hidden;
+      transition: grid-template-columns 0.25s ease;
+    }
+
+    main.editor-collapsed {
+      grid-template-columns: minmax(0, 1fr) 44px;
+    }
+
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+      main.editor-collapsed { grid-template-columns: 1fr; }
+      .editor-panel { border-left: none; border-top: 1px solid var(--sand); }
+      .editor-panel.collapsed {
+        max-height: 44px;
+        overflow: hidden;
+      }
+    }
+
+    .tree-container {
+      overflow: auto;
+      padding: 2rem;
+      min-width: 0;
+      min-height: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .editor-panel {
+      background: var(--warm-white);
+      border-left: 1px solid var(--sand);
+      padding: 1.5rem;
+      overflow-y: auto;
+      overflow-x: hidden;
+      min-height: 0;
+      transition: padding 0.25s ease;
+      position: relative;
+    }
+
+    .editor-panel.collapsed {
+      padding: 0.75rem 0.5rem;
+      overflow: hidden;
+    }
+
+    .editor-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--gold);
+    }
+
+    .editor-panel.collapsed .editor-header {
+      flex-direction: column;
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    .editor-panel h2 {
+      font-size: 1.1rem;
+      font-weight: normal;
+      color: var(--brown);
+      margin: 0;
+    }
+
+    .editor-panel.collapsed h2 {
+      display: none;
+    }
+
+    .editor-toggle {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--tan);
+      border-radius: 4px;
+      background: var(--cream);
+      color: var(--brown);
+      font-size: 1.1rem;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+    }
+
+    .editor-toggle:hover {
+      background: var(--sand);
+    }
+
+    .editor-panel.collapsed .editor-toggle {
+      width: 32px;
+      height: 32px;
+    }
+
+    #editorContent {
+      transition: opacity 0.2s ease;
+    }
+
+    .editor-panel.collapsed #editorContent {
+      display: none;
+    }
+
+    .editor-empty {
+      color: var(--sage);
+      font-style: italic;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    /* Tree layout — top to bottom */
+    .tree-root {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: max-content;
+      min-width: 100%;
+    }
+
+    .heritage-name {
+      font-size: 2.75rem;
+      font-weight: normal;
+      color: var(--dark-brown);
+      text-align: center;
+      margin-bottom: 1.75rem;
+      letter-spacing: 0.03em;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .heritage-name::after {
+      content: "";
+      display: block;
+      width: 140px;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      margin: 0.85rem auto 0;
+    }
+
+    .tree-node-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+
+    .tree-node {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.75rem;
+      background: var(--warm-white);
+      border: 2px solid var(--sand);
+      border-radius: 8px;
+      box-shadow: 0 2px 8px var(--shadow);
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      position: relative;
+    }
+
+    .tree-node:hover {
+      border-color: var(--tan);
+    }
+
+    .tree-node.selected {
+      border-color: var(--terracotta);
+      box-shadow: 0 0 0 3px rgba(184, 92, 56, 0.25);
+    }
+
+    .tree-node.root-node {
+      border-color: var(--gold);
+      background: linear-gradient(180deg, #fff9f0 0%, var(--warm-white) 100%);
+    }
+
+    .tree-node.leaf-node {
+      border-style: dashed;
+      border-color: var(--sage);
+    }
+
+    .person-card {
+      min-width: 120px;
+      width: max-content;
+      padding: 0 0.25rem;
+      text-align: center;
+    }
+
+    .person-photo {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--sand);
+      background: var(--cream);
+      display: block;
+      margin: 0 auto 0.4rem;
+    }
+
+    .person-photo.placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      color: var(--tan);
+    }
+
+    .person-name {
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: var(--dark-brown);
+      white-space: nowrap;
+    }
+
+    .person-meta {
+      font-size: 0.65rem;
+      color: var(--sage);
+      margin-top: 0.15rem;
+      line-height: 1.3;
+    }
+
+    .node-badge {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      font-size: 0.6rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 10px;
+      background: var(--brown);
+      color: white;
+    }
+
+    .node-badge.leaf { background: var(--sage); }
+
+    .person-relation {
+      font-size: 0.6rem;
+      padding: 0.12rem 0.4rem;
+      border-radius: 8px;
+      background: var(--gold);
+      color: var(--dark-brown);
+      white-space: nowrap;
+      display: inline-block;
+      margin-bottom: 0.25rem;
+    }
+
+    .toggle-btn {
+      position: absolute;
+      bottom: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--tan);
+      background: var(--warm-white);
+      color: var(--brown);
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .toggle-btn:hover {
+      background: var(--sand);
+    }
+
+    .children-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 2rem;
+      position: relative;
+    }
+
+    .children-container::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 2px;
+      height: 1rem;
+      background: var(--line);
+      transform: translateX(-50%);
+    }
+
+    .children-row {
+      display: flex;
+      gap: 2rem;
+      position: relative;
+      padding-top: 1rem;
+    }
+
+    .children-row::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--line);
+    }
+
+    .child-branch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+
+    .child-branch::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 2px;
+      height: 1rem;
+      background: var(--line);
+      transform: translateX(-50%);
+    }
+
+    .child-branch:only-child::before {
+      height: 1rem;
+    }
+
+    .child-branch.dragging {
+      opacity: 0.45;
+    }
+
+    .child-branch.drag-over {
+      outline: 2px dashed var(--terracotta);
+      outline-offset: 6px;
+      border-radius: 8px;
+    }
+
+    .sibling-drag-handle {
+      cursor: grab;
+      color: var(--tan);
+      font-size: 0.85rem;
+      letter-spacing: 0.15em;
+      padding: 0.2rem 0.5rem;
+      margin-bottom: 0.35rem;
+      user-select: none;
+      line-height: 1;
+      border-radius: 4px;
+      background: var(--cream);
+      border: 1px solid var(--sand);
+    }
+
+    .sibling-drag-handle:hover {
+      color: var(--brown);
+      border-color: var(--tan);
+    }
+
+    .sibling-drag-handle:active {
+      cursor: grabbing;
+    }
+
+    /* Editor form */
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--brown);
+      margin-bottom: 0.3rem;
+    }
+
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid var(--sand);
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.875rem;
+      background: var(--cream);
+      color: var(--dark-brown);
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: var(--terracotta);
+    }
+
+    .person-section {
+      background: var(--cream);
+      border: 1px solid var(--sand);
+      border-radius: 6px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .person-section h3 {
+      font-size: 0.9rem;
+      font-weight: normal;
+      color: var(--terracotta);
+      margin-bottom: 0.75rem;
+    }
+
+    .photo-upload {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .photo-preview {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--sand);
+      background: var(--warm-white);
+    }
+
+    .photo-preview.empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      color: var(--tan);
+    }
+
+    .photo-upload input[type="file"] {
+      font-size: 0.75rem;
+      width: auto;
+    }
+
+    .editor-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--sand);
+    }
+
+    .editor-actions button {
+      font-family: inherit;
+      font-size: 0.8rem;
+      padding: 0.4rem 0.75rem;
+      border: 1px solid var(--tan);
+      background: var(--warm-white);
+      color: var(--dark-brown);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .editor-actions button:hover { background: var(--sand); }
+
+    .editor-actions button.danger {
+      border-color: #c44;
+      color: #a33;
+    }
+
+    .editor-actions button.danger:hover {
+      background: #fee;
+    }
+
+    .node-type-toggle {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .node-type-toggle button {
+      flex: 1;
+      font-family: inherit;
+      font-size: 0.8rem;
+      padding: 0.5rem;
+      border: 1px solid var(--sand);
+      background: var(--cream);
+      color: var(--dark-brown);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .node-type-toggle button.active {
+      background: var(--brown);
+      color: white;
+      border-color: var(--brown);
+    }
+
+    .node-type-toggle button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .pdf-export-wrap {
+      background: var(--cream);
+      padding: 1.5rem;
+      display: inline-block;
+      min-width: min-content;
+    }
+
+    .pdf-export-title {
+      text-align: center;
+      margin-bottom: 1.25rem;
+      color: var(--dark-brown);
+    }
+
+    .pdf-export-title h2 {
+      font-size: 1.5rem;
+      font-weight: normal;
+      margin-bottom: 0.25rem;
+    }
+
+    .pdf-export-title p {
+      font-size: 0.85rem;
+      color: var(--sage);
+    }
+
+    .tree-node.pdf-capture .tree-node.selected {
+      border-color: var(--sand);
+      box-shadow: 0 2px 8px var(--shadow);
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Family Tree</h1>
+    <p>Where families grow together — store photos, birth dates &amp; nakshatras for generations to come.</p>
+  </header>
+
+  <div class="toolbar">
+    <button class="primary" id="btnSave">Save Tree</button>
+    <button class="primary" id="btnExportPdf">Export PDF</button>
+    <button id="btnExportHtml">Export HTML</button>
+    <button id="btnExport">Export JSON</button>
+    <button id="btnImport">Import JSON</button>
+    <input type="file" id="importFile" accept=".json" hidden>
+    <button id="btnReset">Reset Tree</button>
+    <span class="status" id="statusMsg">Ready</span>
+  </div>
+
+  <main>
+    <div class="tree-container">
+      <div class="tree-root" id="treeRoot"></div>
+    </div>
+
+    <aside class="editor-panel" id="editorPanel">
+      <div class="editor-header">
+        <h2>Edit Node</h2>
+        <button type="button" class="editor-toggle" id="btnToggleEditor" title="Collapse panel" aria-expanded="true">›</button>
+      </div>
+      <div id="editorContent">
+        <p class="editor-empty">Click a node in the tree to view and edit family member details — photo, date of birth, and nakshatra.</p>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    const NAKSHATRAS = [
+      "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Aridra",
+      "Punarvasu", "Pushya", "Ashlesha", "Magha", "Purva Phalguni", "Uttara Phalguni",
+      "Hasta", "Chitra", "Swati", "Vishakha", "Anuradha", "Jyeshtha",
+      "Mula", "Purva Ashadha", "Uttara Ashadha", "Shravana", "Dhanishta",
+      "Shatabhisha", "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
+    ];
+
+    const RELATIONS = ["Son", "Daughter", "Daughter-in-law", "Son-in-law"];
+
+    const STORAGE_KEY = "familyTreeData";
+    const EDITOR_COLLAPSED_KEY = "familyTreeEditorCollapsed";
+    const IDB_NAME = "FamilyTreeStorage";
+    const IDB_STORE = "kv";
+    const DISK_TREE_FILE = "family-tree.json";
+    const DISK_PHOTOS_DIR = "photos";
+
+    let treeData = null;
+    let selectedNodeId = null;
+    let expandedNodes = new Set();
+    let editorCollapsed = false;
+    let dbPromise = null;
+
+    function openDb() {
+      if (!dbPromise) {
+        dbPromise = new Promise((resolve, reject) => {
+          const req = indexedDB.open(IDB_NAME, 1);
+          req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      }
+      return dbPromise;
+    }
+
+    async function idbGet(key) {
+      const db = await openDb();
+      return new Promise((resolve, reject) => {
+        const req = db.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function idbSet(key, value) {
+      const db = await openDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, "readwrite");
+        tx.objectStore(IDB_STORE).put(value, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function idbDelete(key) {
+      const db = await openDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, "readwrite");
+        tx.objectStore(IDB_STORE).delete(key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    function dataUrlToBlob(dataUrl) {
+      const [header, data] = dataUrl.split(",");
+      const mime = (header.match(/:(.*?);/) || [, "image/jpeg"])[1];
+      const binary = atob(data);
+      const arr = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+      return new Blob([arr], { type: mime });
+    }
+
+    function blobToDataUrl(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    function sanitizeId(id) {
+      return String(id).replace(/[^a-zA-Z0-9_-]/g, "_");
+    }
+
+    async function ensureDirPermission(dirHandle) {
+      if (!dirHandle) return false;
+      let perm = await dirHandle.queryPermission({ mode: "readwrite" });
+      if (perm === "granted") return true;
+      perm = await dirHandle.requestPermission({ mode: "readwrite" });
+      return perm === "granted";
+    }
+
+    async function writeTreeToDisk(dirHandle) {
+      const treeCopy = JSON.parse(JSON.stringify(treeData));
+      const photosDir = await dirHandle.getDirectoryHandle(DISK_PHOTOS_DIR, { create: true });
+
+      async function processNode(node) {
+        for (let i = 0; i < node.persons.length; i++) {
+          const person = node.persons[i];
+          if (!person.photo) continue;
+          const filename = `${sanitizeId(node.id)}_${i}.jpg`;
+          if (person.photo.startsWith("data:")) {
+            const fileHandle = await photosDir.getFileHandle(filename, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(dataUrlToBlob(person.photo));
+            await writable.close();
+            person.photo = `${DISK_PHOTOS_DIR}/${filename}`;
+          }
+        }
+        for (const child of node.children) await processNode(child);
+      }
+
+      await processNode(treeCopy);
+      const fileHandle = await dirHandle.getFileHandle(DISK_TREE_FILE, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(JSON.stringify({
+        version: 1,
+        savedAt: new Date().toISOString(),
+        tree: treeCopy
+      }, null, 2));
+      await writable.close();
+    }
+
+    async function loadTreeFromDisk(dirHandle) {
+      const fileHandle = await dirHandle.getFileHandle(DISK_TREE_FILE);
+      const payload = JSON.parse(await (await fileHandle.getFile()).text());
+      const tree = payload.tree || payload;
+      migrateNode(tree);
+
+      async function hydratePhotos(node) {
+        for (const person of node.persons) {
+          if (person.photo && person.photo.startsWith(`${DISK_PHOTOS_DIR}/`)) {
+            try {
+              const filename = person.photo.split("/").pop();
+              const photosDir = await dirHandle.getDirectoryHandle(DISK_PHOTOS_DIR);
+              const photoHandle = await photosDir.getFileHandle(filename);
+              person.photo = await blobToDataUrl(await photoHandle.getFile());
+            } catch {
+              person.photo = "";
+            }
+          }
+        }
+        for (const child of node.children) await hydratePhotos(child);
+      }
+
+      await hydratePhotos(tree);
+      return ensureTreeIntegrity(tree);
+    }
+
+    async function clearDiskData(dirHandle) {
+      try {
+        await dirHandle.removeEntry(DISK_TREE_FILE);
+      } catch { /* file may not exist */ }
+
+      try {
+        const photosDir = await dirHandle.getDirectoryHandle(DISK_PHOTOS_DIR);
+        for await (const [name] of photosDir.entries()) {
+          await photosDir.removeEntry(name);
+        }
+      } catch { /* folder may not exist */ }
+    }
+
+    async function clearAllStorage() {
+      await idbDelete("tree");
+      localStorage.removeItem(STORAGE_KEY);
+      const dirHandle = await idbGet("dirHandle");
+      if (dirHandle && await ensureDirPermission(dirHandle)) {
+        await clearDiskData(dirHandle);
+      }
+    }
+
+    function roleFromRelation(relation) {
+      if (relation === "Daughter" || relation === "Daughter-in-law") return "Wife";
+      if (relation === "Son" || relation === "Son-in-law") return "Husband";
+      return null;
+    }
+
+    function isFemaleRelation(relation) {
+      return relation === "Daughter" || relation === "Daughter-in-law";
+    }
+
+    function defaultNameForRelation(relation) {
+      return "Unnamed ";
+    }
+
+    function isGenericDefaultName(name) {
+      if (!name || name === "Unnamed") return true;
+      if (name === "Husband" || name === "Wife" || name === "Member") return true;
+      return RELATIONS.some(r => name === defaultNameForRelation(r));
+    }
+
+    function applyDefaultNameFromRelation(person, previousRelation) {
+      if (isGenericDefaultName(person.name) || person.name === defaultNameForRelation(previousRelation)) {
+        person.name = defaultNameForRelation(person.relation);
+      }
+    }
+
+    function updateRelationAndDefaults(node, changedIdx, newRelation) {
+      const previousRelation = node.persons[changedIdx].relation;
+      node.persons[changedIdx].relation = newRelation;
+      applyDefaultNameFromRelation(node.persons[changedIdx], previousRelation);
+
+      if (node.type === "couple" && node.persons.length === 2) {
+        const spouseIdx = changedIdx === 0 ? 1 : 0;
+        const previousSpouseRelation = node.persons[spouseIdx].relation;
+        node.persons[spouseIdx].relation = defaultSpouseRelation(newRelation);
+        applyDefaultNameFromRelation(node.persons[spouseIdx], previousSpouseRelation);
+      }
+    }
+
+    function personPlaceholder(person, node, idx) {
+      if (node.isRoot && !person.relation) return idx === 0 ? "♂" : "♀";
+      if (isFemaleRelation(person.relation)) return "♀";
+      if (roleFromRelation(person.relation) === "Husband") return "♂";
+      return "●";
+    }
+
+    function personRoleLabel(person, node) {
+      if (node.isRoot && !person.relation) {
+        const idx = node.persons.indexOf(person);
+        return idx === 0 ? "Husband" : "Wife";
+      }
+      return roleFromRelation(person.relation) || "Member";
+    }
+
+    function createPerson(name = "", relation = "Son") {
+      const resolvedName = name || defaultNameForRelation(relation);
+      return { name: resolvedName, photo: "", dob: "", nakshatra: "", relation };
+    }
+
+    function defaultSpouseRelation(primaryRelation) {
+      if (primaryRelation === "Son") return "Daughter-in-law";
+      if (primaryRelation === "Daughter") return "Son-in-law";
+      if (primaryRelation === "Son-in-law") return "Daughter";
+      if (primaryRelation === "Daughter-in-law") return "Son";
+      return "Daughter-in-law";
+    }
+
+    function createNode(type = "couple", isRoot = false) {
+      const id = "n_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+      const node = {
+        id,
+        type,
+        isRoot,
+        heritageName: isRoot ? "" : undefined,
+        persons: type === "couple"
+          ? isRoot
+            ? [createPerson("Husband", ""), createPerson("Wife", "")]
+            : [createPerson("", "Son"), createPerson("", "Daughter-in-law")]
+          : [createPerson("", "Son")],
+        children: [],
+        expanded: true
+      };
+      return node;
+    }
+
+    function relationSortIndex(relation) {
+      const idx = RELATIONS.indexOf(relation);
+      return idx >= 0 ? idx : RELATIONS.length;
+    }
+
+    function sortPersonsByRelation(persons) {
+      return [...persons].sort(
+        (a, b) => relationSortIndex(a.relation) - relationSortIndex(b.relation)
+      );
+    }
+
+    function nodeSortKey(node) {
+      if (!node.persons.length) return RELATIONS.length;
+      return Math.min(...node.persons.map(p => relationSortIndex(p.relation)));
+    }
+
+    function sortChildrenByRelation(children) {
+      return [...children].sort((a, b) => nodeSortKey(a) - nodeSortKey(b));
+    }
+
+    function sortChildrenInPlace(children) {
+      children.sort((a, b) => nodeSortKey(a) - nodeSortKey(b));
+    }
+
+    function reorderSiblings(parent, fromId, toId) {
+      const children = parent.children;
+      const fromIdx = children.findIndex(c => c.id === fromId);
+      let toIdx = children.findIndex(c => c.id === toId);
+      if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+      const [moved] = children.splice(fromIdx, 1);
+      if (fromIdx < toIdx) toIdx--;
+      children.splice(toIdx, 0, moved);
+    }
+
+    function migrateNode(node) {
+      if (node.relation) {
+        if (node.persons[0] && !node.persons[0].relation) {
+          node.persons[0].relation = node.relation;
+        }
+        delete node.relation;
+      }
+      node.persons.forEach((p, i) => {
+        if (p.relation === undefined) {
+          if (node.isRoot) p.relation = "";
+          else if (i === 0) p.relation = "Son";
+          else p.relation = defaultSpouseRelation(node.persons[0].relation);
+        }
+      });
+      node.children.forEach(migrateNode);
+    }
+
+    function createDefaultRootNode() {
+      return createNode("couple", true);
+    }
+
+    function ensurePersonFields(person, fallbackName, fallbackRelation = "") {
+      if (!person || typeof person !== "object") {
+        return createPerson(fallbackName, fallbackRelation);
+      }
+      return {
+        name: person.name || fallbackName,
+        photo: person.photo || "",
+        dob: person.dob || "",
+        nakshatra: person.nakshatra || "",
+        relation: person.relation !== undefined ? person.relation : fallbackRelation
+      };
+    }
+
+    function ensureTreeIntegrity(data) {
+      let tree = data;
+      if (!tree || typeof tree !== "object") {
+        return createDefaultRootNode();
+      }
+      if (tree.tree && !tree.persons) {
+        tree = tree.tree;
+      }
+      if (!tree || typeof tree !== "object") {
+        return createDefaultRootNode();
+      }
+
+      const defaults = createDefaultRootNode();
+
+      tree.id = tree.id || defaults.id;
+      tree.isRoot = true;
+      tree.type = "couple";
+      tree.expanded = tree.expanded !== false;
+      tree.children = Array.isArray(tree.children) ? tree.children : [];
+      tree.heritageName = tree.heritageName || "";
+
+      const persons = Array.isArray(tree.persons) ? tree.persons : [];
+      tree.persons = [
+        ensurePersonFields(persons[0], "Husband", ""),
+        ensurePersonFields(persons[1], "Wife", "")
+      ];
+
+      migrateNode(tree);
+      return tree;
+    }
+
+    function defaultTree() {
+      const root = createDefaultRootNode();
+      expandedNodes.add(root.id);
+      return root;
+    }
+
+    async function loadTree() {
+      try {
+        const dirHandle = await idbGet("dirHandle");
+        if (dirHandle && "showDirectoryPicker" in window && await ensureDirPermission(dirHandle)) {
+          try {
+            treeData = ensureTreeIntegrity(await loadTreeFromDisk(dirHandle));
+            expandedNodes = new Set(collectIds(treeData));
+            await idbSet("tree", treeData);
+            setStatus("Loaded from disk");
+            return;
+          } catch { /* fall through to local storage */ }
+        }
+
+        const fromIdb = await idbGet("tree");
+        if (fromIdb) {
+          treeData = ensureTreeIntegrity(fromIdb);
+          expandedNodes = new Set(collectIds(treeData));
+          setStatus("Loaded from saved data");
+          return;
+        }
+
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          treeData = ensureTreeIntegrity(JSON.parse(raw));
+          expandedNodes = new Set(collectIds(treeData));
+          await idbSet("tree", treeData);
+          setStatus("Loaded from browser storage");
+          return;
+        }
+
+        // App mode: when served from this folder, load the bundled starter data.
+        // Opening the HTML directly from disk may block fetch(), so use `python3 server.py`.
+        try {
+          const res = await fetch("family-tree.json", { cache: "no-store" });
+          if (res.ok) {
+            const bundled = await res.json();
+            treeData = ensureTreeIntegrity(bundled);
+            expandedNodes = new Set(collectIds(treeData));
+            await idbSet("tree", treeData);
+            setStatus("Loaded bundled family-tree.json");
+            return;
+          }
+        } catch (fetchErr) {
+          console.warn("Bundled JSON load failed:", fetchErr);
+        }
+      } catch (e) {
+        console.warn("Load failed:", e);
+      }
+      treeData = defaultTree();
+      await persistLocally();
+      setStatus("Default root tree created");
+    }
+
+    function collectIds(node) {
+      const ids = node.expanded !== false ? [node.id] : [];
+      node.children.forEach(c => ids.push(...collectIds(c)));
+      return ids;
+    }
+
+    async function persistLocally() {
+      await idbSet("tree", treeData);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(treeData));
+      } catch {
+        /* localStorage may be too small when photos are included */
+      }
+    }
+
+    async function saveTree(options = {}) {
+      const { pickFolder = false, statusOverride = null } = options;
+
+      try {
+        await persistLocally();
+
+        let dirHandle = await idbGet("dirHandle");
+
+        if (pickFolder && "showDirectoryPicker" in window) {
+          try {
+            dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+            await idbSet("dirHandle", dirHandle);
+          } catch (e) {
+            if (e.name === "AbortError") {
+              setStatus(statusOverride || "Saved locally (folder not selected)");
+              return;
+            }
+            throw e;
+          }
+        }
+
+        if (dirHandle && await ensureDirPermission(dirHandle)) {
+          await writeTreeToDisk(dirHandle);
+          setStatus(statusOverride || "Saved to disk");
+          return;
+        }
+
+        if (!("showDirectoryPicker" in window) && pickFolder) {
+          setStatus(statusOverride || "Saved locally (disk save needs Chrome or Edge)");
+          return;
+        }
+
+        setStatus(statusOverride || "Saved locally");
+      } catch (err) {
+        console.error(err);
+        setStatus("Save failed");
+      }
+    }
+
+    function setStatus(msg) {
+      const el = document.getElementById("statusMsg");
+      el.textContent = msg;
+      setTimeout(() => { el.textContent = "Ready"; }, 2500);
+    }
+
+    function applyEditorCollapsedState() {
+      const main = document.querySelector("main");
+      const panel = document.getElementById("editorPanel");
+      const btn = document.getElementById("btnToggleEditor");
+      main.classList.toggle("editor-collapsed", editorCollapsed);
+      panel.classList.toggle("collapsed", editorCollapsed);
+      btn.textContent = editorCollapsed ? "‹" : "›";
+      btn.title = editorCollapsed ? "Expand panel" : "Collapse panel";
+      btn.setAttribute("aria-expanded", String(!editorCollapsed));
+    }
+
+    function setEditorCollapsed(collapsed) {
+      editorCollapsed = collapsed;
+      localStorage.setItem(EDITOR_COLLAPSED_KEY, collapsed ? "1" : "0");
+      applyEditorCollapsedState();
+    }
+
+    function toggleEditorPanel() {
+      setEditorCollapsed(!editorCollapsed);
+    }
+
+    function expandEditorPanel() {
+      if (editorCollapsed) setEditorCollapsed(false);
+    }
+
+    function isLeaf(node) {
+      return node.children.length === 0;
+    }
+
+    function findNode(node, id) {
+      if (node.id === id) return node;
+      for (const child of node.children) {
+        const found = findNode(child, id);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    function findParent(node, id, parent = null) {
+      if (node.id === id) return parent;
+      for (const child of node.children) {
+        const found = findParent(child, id, node);
+        if (found !== undefined && found !== null) return found;
+        if (findNode(child, id)) return node;
+      }
+      return null;
+    }
+
+    function renderPersonCard(person, node) {
+      const idx = node.persons.indexOf(person);
+      const photoHtml = person.photo
+        ? `<img class="person-photo" src="${person.photo}" alt="${person.name}">`
+        : `<div class="person-photo placeholder">${personPlaceholder(person, node, idx)}</div>`;
+
+      const meta = [];
+      if (person.dob) meta.push(person.dob);
+      if (person.nakshatra) meta.push(person.nakshatra);
+
+      return `
+        <div class="person-card">
+          ${person.relation ? `<span class="person-relation">${escapeHtml(person.relation)}</span>` : ""}
+          ${photoHtml}
+          <div class="person-name">${escapeHtml(person.name || "Unnamed")}</div>
+          ${meta.length ? `<div class="person-meta">${meta.map(escapeHtml).join("<br>")}</div>` : ""}
+        </div>`;
+    }
+
+    function escapeHtml(str) {
+      const d = document.createElement("div");
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    function renderHeritageBanner(node) {
+      if (!node.isRoot || !node.heritageName) return "";
+      return `<div class="heritage-name">${escapeHtml(node.heritageName)}</div>`;
+    }
+
+    function renderNode(node) {
+      const leaf = isLeaf(node);
+      const expanded = expandedNodes.has(node.id);
+      const selected = selectedNodeId === node.id;
+      const hasChildren = node.children.length > 0;
+
+      const sortedPersons = sortPersonsByRelation(node.persons);
+      const cards = sortedPersons.map((p) => renderPersonCard(p, node)).join("");
+
+      let badge = node.isRoot ? "Root" : leaf ? "Leaf" : node.type === "couple" ? "Couple" : "Single";
+      let badgeClass = leaf ? "leaf" : "";
+      let badgeHtml = (badge === "Root" || badge === "Leaf" || badge === "Couple")
+        ? ""
+        : `<span class="node-badge ${badgeClass}">${badge}</span>`;
+
+      let toggleBtn = "";
+      if (hasChildren) {
+        toggleBtn = `<button class="toggle-btn" data-toggle="${node.id}" title="${expanded ? "Collapse" : "Expand"}">${expanded ? "−" : "+"}</button>`;
+      }
+
+      let childrenHtml = "";
+      if (hasChildren && expanded) {
+        const showDragHandles = node.children.length > 1;
+        const branches = node.children.map(c => {
+          const dragHandle = showDragHandles
+            ? `<div class="sibling-drag-handle" draggable="true" data-sibling-id="${c.id}" data-parent-id="${node.id}" title="Drag to reorder">⠿</div>`
+            : "";
+          return `
+          <div class="child-branch" data-sibling-id="${c.id}" data-parent-id="${node.id}">
+            ${dragHandle}
+            ${renderNode(c)}
+          </div>`;
+        }).join("");
+        childrenHtml = `
+          <div class="children-container">
+            <div class="children-row">${branches}</div>
+          </div>`;
+      }
+
+      const classes = [
+        "tree-node",
+        selected ? "selected" : "",
+        node.isRoot ? "root-node" : "",
+        leaf ? "leaf-node" : ""
+      ].filter(Boolean).join(" ");
+
+      return `
+        <div class="tree-node-wrapper">
+          <div class="${classes}" data-node-id="${node.id}">
+            ${badgeHtml}
+            ${cards}
+            ${toggleBtn}
+          </div>
+          ${childrenHtml}
+        </div>`;
+    }
+
+    function renderTree() {
+      document.getElementById("treeRoot").innerHTML =
+        renderHeritageBanner(treeData) + renderNode(treeData);
+      bindTreeEvents();
+    }
+
+    function bindTreeEvents() {
+      document.querySelectorAll("[data-node-id]").forEach(el => {
+        el.addEventListener("click", e => {
+          if (e.target.closest(".toggle-btn")) return;
+          if (e.target.closest(".sibling-drag-handle")) return;
+          selectedNodeId = el.dataset.nodeId;
+          expandEditorPanel();
+          renderTree();
+          renderEditor();
+        });
+      });
+
+      document.querySelectorAll("[data-toggle]").forEach(btn => {
+        btn.addEventListener("click", e => {
+          e.stopPropagation();
+          const id = btn.dataset.toggle;
+          if (expandedNodes.has(id)) expandedNodes.delete(id);
+          else expandedNodes.add(id);
+          renderTree();
+        });
+      });
+
+      bindDragEvents();
+    }
+
+    function bindDragEvents() {
+      let dragged = null;
+
+      document.querySelectorAll(".sibling-drag-handle").forEach(handle => {
+        handle.addEventListener("dragstart", e => {
+          e.stopPropagation();
+          dragged = {
+            id: handle.dataset.siblingId,
+            parentId: handle.dataset.parentId
+          };
+          handle.closest(".child-branch").classList.add("dragging");
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", dragged.id);
+        });
+
+        handle.addEventListener("dragend", () => {
+          document.querySelectorAll(".child-branch").forEach(b => {
+            b.classList.remove("dragging", "drag-over");
+          });
+          dragged = null;
+        });
+      });
+
+      document.querySelectorAll(".child-branch[data-sibling-id]").forEach(branch => {
+        branch.addEventListener("dragover", e => {
+          e.preventDefault();
+          if (!dragged || branch.dataset.parentId !== dragged.parentId) return;
+          if (branch.dataset.siblingId === dragged.id) return;
+          document.querySelectorAll(`.child-branch[data-parent-id="${dragged.parentId}"]`)
+            .forEach(b => b.classList.remove("drag-over"));
+          branch.classList.add("drag-over");
+        });
+
+        branch.addEventListener("dragleave", e => {
+          if (!branch.contains(e.relatedTarget)) {
+            branch.classList.remove("drag-over");
+          }
+        });
+
+        branch.addEventListener("drop", e => {
+          e.preventDefault();
+          e.stopPropagation();
+          branch.classList.remove("drag-over");
+          if (!dragged || branch.dataset.parentId !== dragged.parentId) return;
+          const targetId = branch.dataset.siblingId;
+          if (targetId === dragged.id) return;
+          const parent = findNode(treeData, dragged.parentId);
+          if (!parent) return;
+          reorderSiblings(parent, dragged.id, targetId);
+          renderTree();
+          persistLocally();
+          setStatus("Sibling order updated");
+        });
+      });
+    }
+
+    function relationOptions(selected) {
+      return RELATIONS.map(r =>
+        `<option value="${r}"${r === selected ? " selected" : ""}>${r}</option>`
+      ).join("");
+    }
+
+    function nakshatraOptions(selected) {
+      return NAKSHATRAS.map(n =>
+        `<option value="${n}"${n === selected ? " selected" : ""}>${n}</option>`
+      ).join("");
+    }
+
+    function renderEditor() {
+      const container = document.getElementById("editorContent");
+      const node = selectedNodeId ? findNode(treeData, selectedNodeId) : null;
+
+      if (!node) {
+        container.innerHTML = `<p class="editor-empty">Click a node in the tree to view and edit family member details — photo, date of birth, and nakshatra.</p>`;
+        return;
+      }
+
+      const leaf = isLeaf(node);
+      const hasChildren = node.children.length > 0;
+      const canChangeType = !node.isRoot && !hasChildren;
+
+      let typeToggle = "";
+      let heritageField = "";
+      if (node.isRoot) {
+        heritageField = `
+          <div class="form-group">
+            <label>Heritage Name</label>
+            <input type="text" data-root-field="heritageName" value="${escapeAttr(node.heritageName || "")}" placeholder="e.g. Sharma Family">
+          </div>`;
+        typeToggle = `<p style="font-size:0.85rem;color:var(--sage);margin-bottom:1rem;">Root — Couple (Husband &amp; Wife)</p>`;
+      } else if (canChangeType) {
+        typeToggle = `
+          <div class="form-group">
+            <label>Node type ${leaf ? "(leaf — single person)" : ""}</label>
+            <div class="node-type-toggle">
+              <button type="button" class="${node.type === "couple" ? "active" : ""}" data-set-type="couple">Couple (2)</button>
+              <button type="button" class="${node.type === "single" ? "active" : ""}" data-set-type="single">Single (1)</button>
+            </div>
+          </div>`;
+      } else {
+        typeToggle = `<p style="font-size:0.85rem;color:var(--sage);margin-bottom:1rem;">Couple (Husband &amp; Wife) — has descendants</p>`;
+      }
+
+      const personSections = sortPersonsByRelation(node.persons).map((person) => {
+        const idx = node.persons.indexOf(person);
+        const roleLabel = personRoleLabel(person, node);
+        const photoPreview = person.photo
+          ? `<img class="photo-preview" src="${person.photo}" alt="Preview">`
+          : `<div class="photo-preview empty">${personPlaceholder(person, node, idx)}</div>`;
+
+        const relationFieldHtml = node.isRoot ? "" : `
+            <div class="form-group">
+              <label>Relation</label>
+              <select data-field="relation" data-idx="${idx}">
+                ${relationOptions(person.relation || "Son")}
+              </select>
+            </div>`;
+
+        return `
+          <div class="person-section" data-person-idx="${idx}">
+            <h3>${roleLabel}</h3>
+            ${relationFieldHtml}
+            <div class="photo-upload">
+              ${photoPreview}
+              <input type="file" accept="image/*" data-photo-idx="${idx}">
+            </div>
+            <div class="form-group">
+              <label>Name</label>
+              <input type="text" data-field="name" data-idx="${idx}" value="${escapeAttr(person.name)}">
+            </div>
+            <div class="form-group">
+              <label>Date of Birth</label>
+              <input type="date" data-field="dob" data-idx="${idx}" value="${escapeAttr(person.dob)}">
+            </div>
+            <div class="form-group">
+              <label>Nakshatra</label>
+              <select data-field="nakshatra" data-idx="${idx}">
+                <option value="">— Select —</option>
+                ${nakshatraOptions(person.nakshatra)}
+              </select>
+            </div>
+          </div>`;
+      }).join("");
+
+      const canAddChild = node.type === "couple";
+      const canDelete = !node.isRoot;
+
+      container.innerHTML = `
+        ${typeToggle}
+        ${heritageField}
+        ${personSections}
+        <div class="editor-actions">
+          ${canAddChild ? `<button type="button" id="btnAddChild">+ Add Child</button>` : ""}
+          ${canDelete ? `<button type="button" class="danger" id="btnDeleteNode">Delete Node</button>` : ""}
+        </div>`;
+
+      bindEditorEvents(node);
+    }
+
+    function escapeAttr(str) {
+      return String(str).replace(/"/g, "&quot;").replace(/</g, "&lt;");
+    }
+
+    function bindEditorEvents(node) {
+      function resortAfterRelationChange() {
+        const parent = findParent(treeData, node.id);
+        if (parent) sortChildrenInPlace(parent.children);
+      }
+
+      document.querySelectorAll("[data-root-field]").forEach(el => {
+        el.addEventListener("input", () => {
+          node[el.dataset.rootField] = el.value;
+          renderTree();
+        });
+        el.addEventListener("change", () => {
+          node[el.dataset.rootField] = el.value;
+          renderTree();
+          persistLocally();
+        });
+      });
+
+      document.querySelectorAll("[data-field]").forEach(el => {
+        el.addEventListener("change", () => {
+          const idx = +el.dataset.idx;
+          if (el.dataset.field === "relation") {
+            updateRelationAndDefaults(node, idx, el.value);
+            resortAfterRelationChange();
+            renderTree();
+            renderEditor();
+            persistLocally();
+            return;
+          }
+          node.persons[idx][el.dataset.field] = el.value;
+          renderTree();
+          persistLocally();
+        });
+        el.addEventListener("input", () => {
+          if (el.dataset.field === "name") {
+            const idx = +el.dataset.idx;
+            node.persons[idx].name = el.value;
+            renderTree();
+          }
+        });
+      });
+
+      document.querySelectorAll("[data-photo-idx]").forEach(input => {
+        input.addEventListener("change", e => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const idx = +input.dataset.photoIdx;
+          const reader = new FileReader();
+          reader.onload = () => {
+            node.persons[idx].photo = reader.result;
+            renderTree();
+            renderEditor();
+            persistLocally();
+          };
+          reader.readAsDataURL(file);
+        });
+      });
+
+      document.querySelectorAll("[data-set-type]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const newType = btn.dataset.setType;
+          if (newType === node.type) return;
+          node.type = newType;
+          if (newType === "couple") {
+            const primary = node.persons[0] || createPerson("", "Son");
+            const spouseRelation = defaultSpouseRelation(primary.relation);
+            node.persons = [
+              primary,
+              node.persons[1] || createPerson("", spouseRelation)
+            ];
+          } else {
+            node.persons = [node.persons[0] || createPerson("", "Son")];
+          }
+          renderTree();
+          renderEditor();
+          persistLocally();
+        });
+      });
+
+      const addBtn = document.getElementById("btnAddChild");
+      if (addBtn) {
+        addBtn.addEventListener("click", () => {
+          const child = createNode("single", false);
+          node.children.push(child);
+          sortChildrenInPlace(node.children);
+          expandedNodes.add(node.id);
+          expandedNodes.add(child.id);
+          selectedNodeId = child.id;
+          renderTree();
+          renderEditor();
+          persistLocally();
+        });
+      }
+
+      const delBtn = document.getElementById("btnDeleteNode");
+      if (delBtn) {
+        delBtn.addEventListener("click", () => {
+          if (!confirm("Delete this node and all its descendants?")) return;
+          deleteNode(treeData, node.id);
+          selectedNodeId = treeData.id;
+          renderTree();
+          renderEditor();
+          persistLocally();
+        });
+      }
+    }
+
+    function deleteNode(parent, id) {
+      const idx = parent.children.findIndex(c => c.id === id);
+      if (idx >= 0) {
+        parent.children.splice(idx, 1);
+        return true;
+      }
+      for (const child of parent.children) {
+        if (deleteNode(child, id)) return true;
+      }
+      return false;
+    }
+
+    function expandAllNodes(node) {
+      expandedNodes.add(node.id);
+      node.children.forEach(expandAllNodes);
+    }
+
+    function buildViewOnlyHtml(data) {
+      const exportDate = new Date().toLocaleDateString(undefined, {
+        year: "numeric", month: "long", day: "numeric"
+      });
+      const treeJson = JSON.stringify(data).replace(/</g, "\\u003c");
+
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Family Tree — ${exportDate}</title>
+  <style>
+    :root {
+      --cream: #faf6f0; --warm-white: #fffdf9; --sand: #e8dcc8; --tan: #c4a574;
+      --brown: #6b4423; --dark-brown: #4a2f1a; --terracotta: #b85c38; --gold: #c9973a;
+      --sage: #7a8b6f; --shadow: rgba(74, 47, 26, 0.12); --line: #c4a574;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      background: linear-gradient(180deg, var(--cream) 0%, #f0e6d6 100%);
+      color: var(--dark-brown); min-height: 100vh;
+    }
+    header {
+      background: linear-gradient(135deg, var(--brown) 0%, var(--dark-brown) 100%);
+      color: #fffdf9; padding: 1.25rem 2rem; box-shadow: 0 2px 12px var(--shadow);
+    }
+    header h1 { font-size: 1.75rem; font-weight: normal; }
+    header p { font-size: 0.9rem; opacity: 0.85; margin-top: 0.35rem; font-style: italic; }
+    .tree-container { overflow: auto; padding: 2rem; width: 100vw; height: calc(100vh - 84px); }
+    .tree-root { display: flex; flex-direction: column; align-items: center; width: max-content; min-width: 100%; }
+    .heritage-name {
+      font-size: 2.75rem; font-weight: normal; color: var(--dark-brown); text-align: center;
+      margin-bottom: 1.75rem; letter-spacing: 0.03em; line-height: 1.2; white-space: nowrap;
+    }
+    .heritage-name::after {
+      content: ""; display: block; width: 140px; height: 3px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      margin: 0.85rem auto 0;
+    }
+    .tree-node-wrapper { display: flex; flex-direction: column; align-items: center; position: relative; }
+    .tree-node {
+      display: flex; gap: 0.5rem; padding: 0.75rem; background: var(--warm-white);
+      border: 2px solid var(--sand); border-radius: 8px; box-shadow: 0 2px 8px var(--shadow); position: relative;
+    }
+    .tree-node.root-node {
+      border-color: var(--gold);
+      background: linear-gradient(180deg, #fff9f0 0%, var(--warm-white) 100%);
+    }
+    .tree-node.leaf-node { border-style: dashed; border-color: var(--sage); }
+    .person-card { min-width: 120px; width: max-content; padding: 0 0.25rem; text-align: center; }
+    .person-photo {
+      width: 72px; height: 72px; border-radius: 50%; object-fit: cover;
+      border: 2px solid var(--sand); background: var(--cream); display: block; margin: 0 auto 0.4rem;
+    }
+    .person-photo.placeholder {
+      display: flex; align-items: center; justify-content: center; font-size: 1.75rem; color: var(--tan);
+    }
+    .person-name { font-size: 0.8rem; font-weight: bold; color: var(--dark-brown); white-space: nowrap; }
+    .person-meta { font-size: 0.65rem; color: var(--sage); margin-top: 0.15rem; line-height: 1.3; }
+    .node-badge {
+      position: absolute; top: -8px; right: -8px; font-size: 0.6rem; padding: 0.15rem 0.4rem;
+      border-radius: 10px; background: var(--brown); color: white;
+    }
+    .node-badge.leaf { background: var(--sage); }
+    .person-relation {
+      font-size: 0.6rem; padding: 0.12rem 0.4rem; border-radius: 8px; background: var(--gold);
+      color: var(--dark-brown); white-space: nowrap; display: inline-block; margin-bottom: 0.25rem;
+    }
+    .toggle-btn {
+      position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%);
+      width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--tan);
+      background: var(--warm-white); color: var(--brown); font-size: 1rem; cursor: pointer; z-index: 2;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .toggle-btn:hover { background: var(--sand); }
+    .children-container {
+      display: flex; flex-direction: column; align-items: center; padding-top: 2rem; position: relative;
+    }
+    .children-container::before {
+      content: ""; position: absolute; top: 0; left: 50%; width: 2px; height: 1rem;
+      background: var(--line); transform: translateX(-50%);
+    }
+    .children-row { display: flex; gap: 2rem; position: relative; padding-top: 1rem; }
+    .children-row::before {
+      content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--line);
+    }
+    .child-branch {
+      display: flex; flex-direction: column; align-items: center; position: relative;
+    }
+    .child-branch::before {
+      content: ""; position: absolute; top: 0; left: 50%; width: 2px; height: 1rem;
+      background: var(--line); transform: translateX(-50%);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Family Tree</h1>
+    <p>View only — exported on ${exportDate}</p>
+  </header>
+  <div class="tree-container">
+    <div class="tree-root" id="treeRoot"></div>
+  </div>
+  <script>
+    const RELATIONS = ["Son", "Daughter", "Daughter-in-law", "Son-in-law"];
+    const treeData = ${treeJson};
+    const expandedNodes = new Set();
+
+    (function collectExpanded(node) {
+      if (node.expanded !== false) expandedNodes.add(node.id);
+      node.children.forEach(collectExpanded);
+    })(treeData);
+
+    function roleFromRelation(r) {
+      if (r === "Daughter" || r === "Daughter-in-law") return "Wife";
+      if (r === "Son" || r === "Son-in-law") return "Husband";
+      return null;
+    }
+    function isFemaleRelation(r) { return r === "Daughter" || r === "Daughter-in-law"; }
+    function personPlaceholder(person, node, idx) {
+      if (node.isRoot && !person.relation) return idx === 0 ? "♂" : "♀";
+      if (isFemaleRelation(person.relation)) return "♀";
+      if (roleFromRelation(person.relation) === "Husband") return "♂";
+      return "●";
+    }
+    function relationSortIndex(r) {
+      const i = RELATIONS.indexOf(r); return i >= 0 ? i : RELATIONS.length;
+    }
+    function sortPersonsByRelation(p) {
+      return [...p].sort((a, b) => relationSortIndex(a.relation) - relationSortIndex(b.relation));
+    }
+    function nodeSortKey(n) {
+      return n.persons.length ? Math.min(...n.persons.map(p => relationSortIndex(p.relation))) : RELATIONS.length;
+    }
+    function sortChildrenByRelation(c) {
+      return [...c].sort((a, b) => nodeSortKey(a) - nodeSortKey(b));
+    }
+    function isLeaf(n) { return n.children.length === 0; }
+    function escapeHtml(str) {
+      const d = document.createElement("div"); d.textContent = str; return d.innerHTML;
+    }
+    function renderPersonCard(person, node) {
+      const idx = node.persons.indexOf(person);
+      const photo = person.photo
+        ? '<img class="person-photo" src="' + person.photo + '" alt="' + escapeHtml(person.name) + '">'
+        : '<div class="person-photo placeholder">' + personPlaceholder(person, node, idx) + '</div>';
+      const meta = [];
+      if (person.dob) meta.push(person.dob);
+      if (person.nakshatra) meta.push(person.nakshatra);
+      return '<div class="person-card">'
+        + (person.relation ? '<span class="person-relation">' + escapeHtml(person.relation) + '</span>' : '')
+        + photo
+        + '<div class="person-name">' + escapeHtml(person.name || "Unnamed") + '</div>'
+        + (meta.length ? '<div class="person-meta">' + meta.map(escapeHtml).join("<br>") + '</div>' : '')
+        + '</div>';
+    }
+    function renderHeritageBanner(node) {
+      if (!node.isRoot || !node.heritageName) return "";
+      return '<div class="heritage-name">' + escapeHtml(node.heritageName) + '</div>';
+    }
+    function renderNode(node) {
+      const leaf = isLeaf(node);
+      const expanded = expandedNodes.has(node.id);
+      const hasChildren = node.children.length > 0;
+      const cards = sortPersonsByRelation(node.persons).map(p => renderPersonCard(p, node)).join("");
+      const badge = node.isRoot ? "Root" : leaf ? "Leaf" : node.type === "couple" ? "Couple" : "Single";
+      const badgeHtml = (badge === "Root" || badge === "Leaf")
+        ? ""
+        : '<span class="node-badge' + (leaf ? " leaf" : "") + '">' + badge + '</span>';
+      const toggleBtn = hasChildren
+        ? '<button class="toggle-btn" data-toggle="' + node.id + '">' + (expanded ? "−" : "+") + '</button>'
+        : "";
+      let childrenHtml = "";
+      if (hasChildren && expanded) {
+        const branches = sortChildrenByRelation(node.children)
+          .map(c => '<div class="child-branch">' + renderNode(c) + '</div>').join("");
+        childrenHtml = '<div class="children-container"><div class="children-row">' + branches + '</div></div>';
+      }
+      const cls = ["tree-node", node.isRoot ? "root-node" : "", leaf ? "leaf-node" : ""].filter(Boolean).join(" ");
+      return '<div class="tree-node-wrapper"><div class="' + cls + '">'
+        + badgeHtml
+        + cards + toggleBtn + '</div>' + childrenHtml + '</div>';
+    }
+    function renderTree() {
+      document.getElementById("treeRoot").innerHTML =
+        renderHeritageBanner(treeData) + renderNode(treeData);
+      document.querySelectorAll("[data-toggle]").forEach(btn => {
+        btn.addEventListener("click", e => {
+          e.stopPropagation();
+          const id = btn.dataset.toggle;
+          if (expandedNodes.has(id)) expandedNodes.delete(id);
+          else expandedNodes.add(id);
+          renderTree();
+        });
+      });
+    }
+    renderTree();
+  <\/script>
+</body>
+</html>`;
+    }
+
+    function exportTreeAsHtml() {
+      saveTree();
+      const exportData = JSON.parse(JSON.stringify(treeData));
+      (function markExpanded(node) {
+        node.expanded = true;
+        node.children.forEach(markExpanded);
+      })(exportData);
+
+      const html = buildViewOnlyHtml(exportData);
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `family-tree-${new Date().toISOString().slice(0, 10)}.html`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      setStatus("HTML view exported");
+    }
+
+    async function exportTreeAsPdf() {
+      if (typeof html2pdf === "undefined") {
+        alert("PDF library failed to load. Please check your internet connection and refresh.");
+        return;
+      }
+
+      saveTree();
+
+      const btn = document.getElementById("btnExportPdf");
+      btn.disabled = true;
+      setStatus("Generating PDF…");
+
+      // Export the tree exactly as the user is currently viewing it.
+      // Collapsed branches stay collapsed; expanded branches stay expanded.
+      const source = document.getElementById("treeRoot");
+      const exportWrap = document.createElement("div");
+      exportWrap.className = "pdf-export-wrap";
+      exportWrap.innerHTML = `
+        <div class="pdf-export-title">
+          <h2>${escapeHtml(treeData.heritageName || "Family Tree")}</h2>
+          <p>Exported on ${new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}</p>
+          <p style="font-size:0.75rem;color:var(--sage);margin-top:0.25rem;">Visible view only — based on current collapsed / expanded branches</p>
+        </div>`;
+
+      const clonedTree = source.cloneNode(true);
+      clonedTree.querySelectorAll(".selected").forEach(el => el.classList.remove("selected"));
+      clonedTree.querySelectorAll(".toggle-btn").forEach(el => el.remove());
+      exportWrap.appendChild(clonedTree);
+      exportWrap.querySelectorAll(".tree-node").forEach(el => el.classList.add("pdf-capture"));
+
+      document.body.appendChild(exportWrap);
+      exportWrap.style.position = "fixed";
+      exportWrap.style.left = "0";
+      exportWrap.style.top = "0";
+      exportWrap.style.zIndex = "-1";
+      exportWrap.style.maxWidth = "none";
+      exportWrap.style.width = "max-content";
+
+      try {
+        // Let the PDF page match the rendered graph size, so wide/deep trees
+        // are not clipped by a fixed A3 page.
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        const pxToMm = 0.264583;
+        const marginMm = 10;
+        const contentWidthPx = Math.ceil(exportWrap.scrollWidth);
+        const contentHeightPx = Math.ceil(exportWrap.scrollHeight);
+        const pdfWidthMm = Math.max(210, Math.ceil(contentWidthPx * pxToMm) + marginMm * 2);
+        const pdfHeightMm = Math.max(297, Math.ceil(contentHeightPx * pxToMm) + marginMm * 2);
+        const orientation = pdfWidthMm >= pdfHeightMm ? "landscape" : "portrait";
+        const format = orientation === "landscape"
+          ? [pdfHeightMm, pdfWidthMm]
+          : [pdfWidthMm, pdfHeightMm];
+
+        await html2pdf().set({
+          margin: [marginMm, marginMm, marginMm, marginMm],
+          filename: `family-tree-visible-${new Date().toISOString().slice(0, 10)}.pdf`,
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: "#faf6f0",
+            scrollX: 0,
+            scrollY: 0,
+            windowWidth: contentWidthPx,
+            windowHeight: contentHeightPx,
+            width: contentWidthPx,
+            height: contentHeightPx
+          },
+          jsPDF: { unit: "mm", format, orientation },
+          pagebreak: { mode: ["avoid-all", "css", "legacy"] }
+        }).from(exportWrap).save();
+
+        setStatus("Visible PDF exported");
+      } catch (err) {
+        console.error(err);
+        alert("Could not generate PDF. Try collapsing some branches or exporting HTML for very large trees.");
+        setStatus("PDF export failed");
+      } finally {
+        document.body.removeChild(exportWrap);
+        btn.disabled = false;
+      }
+    }
+
+    document.getElementById("btnSave").addEventListener("click", async () => {
+      const dirHandle = await idbGet("dirHandle");
+      await saveTree({ pickFolder: !dirHandle });
+    });
+
+    document.getElementById("btnToggleEditor").addEventListener("click", toggleEditorPanel);
+
+    document.getElementById("btnExportPdf").addEventListener("click", exportTreeAsPdf);
+
+    document.getElementById("btnExportHtml").addEventListener("click", exportTreeAsHtml);
+
+    document.getElementById("btnExport").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(treeData, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "family-tree.json";
+      a.click();
+      URL.revokeObjectURL(a.href);
+      setStatus("Exported JSON file");
+    });
+
+    document.getElementById("btnImport").addEventListener("click", () => {
+      document.getElementById("importFile").click();
+    });
+
+    document.getElementById("importFile").addEventListener("change", e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          treeData = ensureTreeIntegrity(JSON.parse(reader.result));
+          expandedNodes = new Set(collectIds(treeData));
+          selectedNodeId = treeData.id;
+          renderTree();
+          renderEditor();
+          await saveTree();
+          setStatus("Imported successfully");
+        } catch (err) {
+          alert("Invalid JSON file");
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = "";
+    });
+
+    document.getElementById("btnReset").addEventListener("click", async () => {
+      if (!confirm("Reset the entire tree? This will clear all saved data including files on disk.")) return;
+      await clearAllStorage();
+      treeData = defaultTree();
+      selectedNodeId = treeData.id;
+      expandedNodes = new Set([treeData.id]);
+      renderTree();
+      renderEditor();
+      await saveTree({ statusOverride: "Tree reset — empty tree saved" });
+    });
+
+    (async function init() {
+      await loadTree();
+      treeData = ensureTreeIntegrity(treeData);
+      editorCollapsed = localStorage.getItem(EDITOR_COLLAPSED_KEY) === "1";
+      applyEditorCollapsedState();
+      selectedNodeId = treeData.id;
+      expandedNodes.add(treeData.id);
+      renderTree();
+      renderEditor();
+    })();
+  </script>
+</body>
+</html>
