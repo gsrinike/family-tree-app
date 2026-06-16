@@ -634,6 +634,9 @@
     <button id="btnExport">Export JSON</button>
     <button id="btnImport">Import JSON</button>
     <input type="file" id="importFile" accept=".json" hidden>
+    <button id="btnExportGedcom">Export GEDCOM</button>
+    <button id="btnImportGedcom">Import GEDCOM</button>
+    <input type="file" id="gedcomFile" accept=".ged,.gedcom,text/plain" hidden>
     <button id="btnReset">Reset Tree</button>
     <span class="status" id="statusMsg">Ready</span>
   </div>
@@ -1814,6 +1817,279 @@
       setStatus("HTML view exported");
     }
 
+
+    function gedcomCleanName(name) {
+      return String(name || "Unnamed").replace(/\s+/g, " ").trim();
+    }
+
+    function gedcomExportName(name) {
+      const clean = gedcomCleanName(name);
+      if (!clean || clean === "Unnamed") return "Unnamed";
+      const parts = clean.split(" ");
+      if (parts.length === 1) return parts[0];
+      const surname = parts.pop();
+      return `${parts.join(" ")} /${surname}/`;
+    }
+
+    function gedcomNormalizeName(rawName) {
+      let value = String(rawName || "").trim();
+      if (!value) return "Unnamed";
+      value = value.replace(/\/([^/]*)\//g, (_, surname) => surname ? ` ${surname} ` : " ");
+      value = value.replace(/\s+/g, " ").trim();
+      return value || "Unnamed";
+    }
+
+    function gedcomDateFromIso(isoDate) {
+      if (!isoDate) return "";
+      const parts = String(isoDate).split("-");
+      if (parts.length !== 3) return String(isoDate);
+      const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+      const month = months[Number(parts[1]) - 1];
+      return month ? `${Number(parts[2])} ${month} ${parts[0]}` : String(isoDate);
+    }
+
+    function isoDateFromGedcomDate(value) {
+      if (!value) return "";
+      const clean = String(value).toUpperCase().replace(/^(ABT|ABOUT|BEF|BEFORE|AFT|AFTER|EST|CAL)\s+/, "").trim();
+      const months = { JAN:"01", FEB:"02", MAR:"03", APR:"04", MAY:"05", JUN:"06", JUL:"07", AUG:"08", SEP:"09", OCT:"10", NOV:"11", DEC:"12" };
+      let m = clean.match(/^(\d{1,2})\s+([A-Z]{3})\s+(\d{3,4})$/);
+      if (m && months[m[2]]) return `${m[3].padStart(4, "0")}-${months[m[2]]}-${m[1].padStart(2, "0")}`;
+      m = clean.match(/^([A-Z]{3})\s+(\d{3,4})$/);
+      if (m && months[m[1]]) return `${m[2].padStart(4, "0")}-${months[m[1]]}-01`;
+      m = clean.match(/^(\d{3,4})$/);
+      if (m) return `${m[1].padStart(4, "0")}-01-01`;
+      return "";
+    }
+
+    function sexFromRelation(relation, indexInRoot = 0) {
+      if (relation === "Daughter" || relation === "Daughter-in-law") return "F";
+      if (relation === "Son" || relation === "Son-in-law") return "M";
+      return indexInRoot === 1 ? "F" : "M";
+    }
+
+    function exportTreeAsGedcom() {
+      saveTree();
+      const individualIds = new Map();
+      const familyLines = [];
+      const lines = [
+        "0 HEAD",
+        "1 SOUR FamilyTreeHTMLApp",
+        "1 GEDC",
+        "2 VERS 5.5.1",
+        "2 FORM LINEAGE-LINKED",
+        "1 CHAR UTF-8"
+      ];
+      let nextIndividualId = 1;
+      let nextFamilyId = 1;
+
+      function keyForPerson(node, personIndex) {
+        return `${node.id}:${personIndex}`;
+      }
+
+      function ensureIndividual(node, personIndex) {
+        const key = keyForPerson(node, personIndex);
+        if (individualIds.has(key)) return individualIds.get(key);
+        const id = `@I${nextIndividualId++}@`;
+        individualIds.set(key, id);
+        return id;
+      }
+
+      function writeIndividual(node, person, personIndex) {
+        const id = ensureIndividual(node, personIndex);
+        lines.push(`0 ${id} INDI`);
+        lines.push(`1 NAME ${gedcomExportName(person.name)}`);
+        lines.push(`1 SEX ${sexFromRelation(person.relation, personIndex)}`);
+        if (person.dob) {
+          lines.push("1 BIRT");
+          lines.push(`2 DATE ${gedcomDateFromIso(person.dob)}`);
+        }
+        if (person.nakshatra) lines.push(`1 NOTE Nakshatra: ${String(person.nakshatra).replace(/[\r\n]+/g, " ")}`);
+      }
+
+      function walkIndividuals(node) {
+        node.persons.forEach((person, idx) => writeIndividual(node, person, idx));
+        node.children.forEach(walkIndividuals);
+      }
+
+      function walkFamilies(node) {
+        if (node.type === "couple" && node.persons.length >= 2) {
+          const famId = `@F${nextFamilyId++}@`;
+          const fam = [`0 ${famId} FAM`, `1 HUSB ${ensureIndividual(node, 0)}`, `1 WIFE ${ensureIndividual(node, 1)}`];
+          node.children.forEach(child => fam.push(`1 CHIL ${ensureIndividual(child, 0)}`));
+          familyLines.push(...fam);
+        }
+        node.children.forEach(walkFamilies);
+      }
+
+      walkIndividuals(treeData);
+      walkFamilies(treeData);
+      lines.push(...familyLines, "0 TRLR");
+      const blob = new Blob([lines.join("\r\n") + "\r\n"], { type: "text/plain;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `family-tree-${new Date().toISOString().slice(0, 10)}.ged`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      setStatus("Exported GEDCOM file");
+    }
+
+    function parseGedcom(text) {
+      const lines = String(text || "").replace(/^\uFEFF/, "").split(/\r?\n/);
+      const records = [];
+      let current = null;
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const match = line.match(/^(\d+)\s+(?:(@[^@]+@)\s+)?(\S+)(?:\s+(.*))?$/);
+        if (!match) continue;
+        const level = Number(match[1]);
+        const pointer = match[2] || "";
+        const tag = match[3];
+        const value = match[4] || "";
+        if (level === 0) {
+          if (current) records.push(current);
+          current = { id: pointer, tag, value, lines: [] };
+        } else if (current) {
+          current.lines.push({ level, tag, value, pointer });
+        }
+      }
+      if (current) records.push(current);
+
+      const individuals = new Map();
+      const families = new Map();
+      for (const record of records) {
+        if (record.tag === "INDI" && record.id) {
+          const indi = { id: record.id, name: "", sex: "", dob: "", fams: [], famc: [] };
+          for (let i = 0; i < record.lines.length; i++) {
+            const line = record.lines[i];
+            if (line.level === 1 && line.tag === "NAME" && !indi.name) indi.name = gedcomNormalizeName(line.value);
+            if (line.level === 1 && line.tag === "SEX") indi.sex = line.value.trim().toUpperCase();
+            if (line.level === 1 && line.tag === "FAMS") indi.fams.push(line.value.trim());
+            if (line.level === 1 && line.tag === "FAMC") indi.famc.push(line.value.trim());
+            if (line.level === 2 && line.tag === "DATE") {
+              let parent = null;
+              for (let j = i - 1; j >= 0; j--) {
+                if (record.lines[j].level < line.level) { parent = record.lines[j]; break; }
+              }
+              if (parent && parent.tag === "BIRT" && !indi.dob) indi.dob = isoDateFromGedcomDate(line.value);
+            }
+          }
+          if (!indi.name) indi.name = `Unnamed ${record.id.replace(/@/g, "")}`;
+          individuals.set(record.id, indi);
+        }
+
+        if (record.tag === "FAM" && record.id) {
+          const fam = { id: record.id, husb: "", wife: "", children: [] };
+          for (const line of record.lines) {
+            if (line.level === 1 && line.tag === "HUSB") fam.husb = line.value.trim();
+            if (line.level === 1 && line.tag === "WIFE") fam.wife = line.value.trim();
+            if (line.level === 1 && line.tag === "CHIL") fam.children.push(line.value.trim());
+          }
+          families.set(record.id, fam);
+        }
+      }
+      return { individuals, families };
+    }
+
+    function importGedcomText(text) {
+      const { individuals, families } = parseGedcom(text);
+      if (!individuals.size) throw new Error("No INDI records found");
+
+      function individual(id) {
+        return individuals.get(id) || { id, name: id ? `Missing ${id.replace(/@/g, "")}` : "Unknown", sex: "", dob: "", fams: [], famc: [] };
+      }
+
+      function makePerson(indi, relation) {
+        return {
+          name: gedcomNormalizeName(indi.name),
+          photo: "",
+          dob: indi.dob || "",
+          nakshatra: "",
+          relation
+        };
+      }
+
+      const referencedChildren = new Set();
+      families.forEach(f => f.children.forEach(c => referencedChildren.add(c)));
+      let rootFamily = null;
+      for (const fam of families.values()) {
+        const hasKnownSpouse = individuals.has(fam.husb) || individuals.has(fam.wife);
+        const spouseIsChild = referencedChildren.has(fam.husb) || referencedChildren.has(fam.wife);
+        if (hasKnownSpouse && !spouseIsChild && fam.children.length) { rootFamily = fam; break; }
+      }
+      if (!rootFamily) {
+        for (const fam of families.values()) {
+          if ((individuals.has(fam.husb) || individuals.has(fam.wife)) && fam.children.length) { rootFamily = fam; break; }
+        }
+      }
+
+      const usedFamilies = new Set();
+      function familyForIndividualAsSpouse(indiId, excludeFamilyId = "") {
+        const indi = individuals.get(indiId);
+        if (!indi) return null;
+        for (const famId of indi.fams) {
+          if (famId !== excludeFamilyId && families.has(famId)) return families.get(famId);
+        }
+        for (const fam of families.values()) {
+          if (fam.id !== excludeFamilyId && (fam.husb === indiId || fam.wife === indiId)) return fam;
+        }
+        return null;
+      }
+
+      function buildChildNode(childId, parentFamilyId, depth = 0) {
+        const child = individual(childId);
+        const childIsFemale = child.sex === "F";
+        const ownFam = depth < 20 ? familyForIndividualAsSpouse(childId, parentFamilyId) : null;
+        if (ownFam) usedFamilies.add(ownFam.id);
+        const spouseId = ownFam ? (ownFam.husb === childId ? ownFam.wife : ownFam.husb) : "";
+        const spouse = spouseId ? individual(spouseId) : null;
+        const node = {
+          id: `ged_${childId.replace(/[^a-zA-Z0-9]/g, "_")}_${Math.random().toString(36).slice(2, 7)}`,
+          type: ownFam && spouseId ? "couple" : "single",
+          isRoot: false,
+          persons: [],
+          children: [],
+          expanded: true
+        };
+        if (node.type === "couple") {
+          const childRelation = childIsFemale ? "Daughter" : "Son";
+          const spouseRelation = childIsFemale ? "Son-in-law" : "Daughter-in-law";
+          node.persons = [makePerson(child, childRelation), makePerson(spouse, spouseRelation)];
+        } else {
+          node.persons = [makePerson(child, childIsFemale ? "Daughter" : "Son")];
+        }
+        if (ownFam) {
+          node.children = ownFam.children.map(id => buildChildNode(id, ownFam.id, depth + 1));
+        }
+        return node;
+      }
+
+      if (!rootFamily) {
+        const first = individuals.values().next().value;
+        return ensureTreeIntegrity({
+          id: "ged_root_" + Date.now(), type: "couple", isRoot: true,
+          heritageName: "Imported GEDCOM Family Tree",
+          persons: [makePerson(first, ""), createPerson("Wife", "")],
+          children: [], expanded: true
+        });
+      }
+
+      usedFamilies.add(rootFamily.id);
+      const root = {
+        id: "ged_root_" + Date.now(),
+        type: "couple",
+        isRoot: true,
+        heritageName: "Imported GEDCOM Family Tree",
+        persons: [
+          makePerson(individual(rootFamily.husb), ""),
+          makePerson(individual(rootFamily.wife), "")
+        ],
+        children: rootFamily.children.map(id => buildChildNode(id, rootFamily.id, 0)),
+        expanded: true
+      };
+      return ensureTreeIntegrity(root);
+    }
+
     async function exportTreeAsPdf() {
       if (typeof html2pdf === "undefined") {
         alert("PDF library failed to load. Please check your internet connection and refresh.");
@@ -1937,6 +2213,35 @@
           setStatus("Imported successfully");
         } catch (err) {
           alert("Invalid JSON file");
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = "";
+    });
+
+
+    document.getElementById("btnExportGedcom").addEventListener("click", exportTreeAsGedcom);
+
+    document.getElementById("btnImportGedcom").addEventListener("click", () => {
+      document.getElementById("gedcomFile").click();
+    });
+
+    document.getElementById("gedcomFile").addEventListener("change", e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          treeData = importGedcomText(reader.result);
+          expandedNodes = new Set(collectIds(treeData));
+          selectedNodeId = treeData.id;
+          renderTree();
+          renderEditor();
+          await saveTree({ statusOverride: "Imported GEDCOM successfully" });
+        } catch (err) {
+          console.error(err);
+          alert("Could not import this GEDCOM file. Please confirm it contains INDI and FAM records.");
+          setStatus("GEDCOM import failed");
         }
       };
       reader.readAsText(file);
