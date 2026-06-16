@@ -1186,7 +1186,7 @@
         : `<div class="person-photo placeholder">${personPlaceholder(person, node, idx)}</div>`;
 
       const meta = [];
-      if (person.dob) meta.push(person.dob);
+      if (person.dob) meta.push(formatDate(person.dob));
       if (person.nakshatra) meta.push(person.nakshatra);
 
       return `
@@ -1741,6 +1741,13 @@
         + '<div class="person-name">' + escapeHtml(person.name || "Unnamed") + '</div>'
         + (meta.length ? '<div class="person-meta">' + meta.map(escapeHtml).join("<br>") + '</div>' : '')
         + '</div>';
+    }
+    function formatDate(dateStr) {
+    if (!dateStr) return "";
+      const parts = dateStr.split("-");
+      if (parts.length !== 3) return dateStr;
+      const [yyyy, mm, dd] = parts;
+      return dd + "-" + mm + "-" + yyyy;
     }
     function renderHeritageBanner(node) {
       if (!node.isRoot || !node.heritageName) return "";
