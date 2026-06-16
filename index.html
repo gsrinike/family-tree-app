@@ -1197,6 +1197,12 @@
           ${meta.length ? `<div class="person-meta">${meta.map(escapeHtml).join("<br>")}</div>` : ""}
         </div>`;
     }
+     
+    function formatDate(dateStr) {
+      const d = new Date(dateStr);
+      if (isNaN(d)) return dateStr;
+      return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    }
 
     function escapeHtml(str) {
       const d = document.createElement("div");
@@ -1742,13 +1748,8 @@
         + (meta.length ? '<div class="person-meta">' + meta.map(escapeHtml).join("<br>") + '</div>' : '')
         + '</div>';
     }
-    function formatDate(dateStr) {
-    if (!dateStr) return "";
-      const parts = dateStr.split("-");
-      if (parts.length !== 3) return dateStr;
-      const [yyyy, mm, dd] = parts;
-      return dd + "-" + mm + "-" + yyyy;
-    }
+
+      
     function renderHeritageBanner(node) {
       if (!node.isRoot || !node.heritageName) return "";
       return '<div class="heritage-name">' + escapeHtml(node.heritageName) + '</div>';
